@@ -83,7 +83,6 @@ public class MainActivity extends Activity {
 
     String apkInventory()throws Exception{
         StringBuilder s=new StringBuilder();int files=0,dex=0;try(ZipInputStream z=new ZipInputStream(new FileInputStream(apkFile))){ZipEntry e;while((e=z.getNextEntry())!=null){files++;String n=e.getName();if(n.endsWith(".dex")){dex++;s.append(n).append("\n");}else if(n.equals("AndroidManifest.xml")||n.startsWith("res/")||n.endsWith(".so"))s.append(n).append("\n");}}return "files="+files+", dex="+dex+"\n"+s;}
-    }
 
     String callAi(String provider,String key,String model,String text)throws Exception{
         String url;
