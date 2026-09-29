@@ -1,4 +1,4 @@
-name: Build Morphe Android APK
+name: Build Morphe AI Mobile APK
 
 on:
   workflow_dispatch:
@@ -7,18 +7,13 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 jobs:
-  build-apk:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout this AI workspace
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Clone Morphe Manager source
-        run: |
-          git clone --depth 1 --branch v1.33.0-dev.8 https://github.com/MorpheApp/morphe-manager.git morphe-manager
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -26,35 +21,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Build Morphe Manager debug APK
-        working-directory: morphe-manager
-        env:
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          chmod +x ./gradlew
-          ./gradlew :app:assembleDebug --stacktrace --no-daemon
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build APK
+        run: gradle :app:assembleDebug --stacktrace --no-daemon
 
       - name: Rename APK
-        run: |
-          cp morphe-manager/app/build/outputs/apk/debug/app-debug.apk Morphe-AI-Mobile.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk Morphe-AI-Mobile.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Morphe-AI-Mobile-APK
           path: Morphe-AI-Mobile.apk
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Package AI workspace
-        run: |
-          zip -r Morphe-AI-Workspace.zip .kiro AGENTS.md README.md setup-cli.sh plugins .env.example
-          
-      - name: Upload AI workspace
-        uses: actions/upload-artifact@v4
-        with:
-          name: Morphe-AI-Workspace
-          path: Morphe-AI-Workspace.zip
           if-no-files-found: error
           retention-days: 14
