@@ -11,12 +11,12 @@ import org.json.*;
 import java.io.*;
 import java.util.*;
 import java.util.zip.*;
-import okhttp3.*;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 public class MainActivity extends Activity {
     static final int PICK_APK=41;
     LinearLayout root; TextView status, report; EditText prompt; Uri apkUri; File apkFile;
-    OkHttpClient http=new OkHttpClient();
 
     int dp(float v){return (int)(v*getResources().getDisplayMetrics().density+.5f);}
     TextView tv(String s,int size){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setPadding(dp(14),dp(10),dp(14),dp(10));return t;}
@@ -86,24 +86,39 @@ public class MainActivity extends Activity {
     }
 
     String callAi(String provider,String key,String model,String text)throws Exception{
-        Request req;
+        String url;
+        String body;
         if(provider.equals("Gemini")){
-            String url="https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent?key="+key;
-            JSONObject body=new JSONObject().put("contents",new JSONArray().put(new JSONObject().put("parts",new JSONArray().put(new JSONObject().put("text",text)))));
-            req=new Request.Builder().url(url).post(RequestBody.create(body.toString(),MediaType.parse("application/json"))).build();
+            url="https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent?key="+java.net.URLEncoder.encode(key,"UTF-8");
+            body=new JSONObject().put("contents",new JSONArray().put(new JSONObject().put("parts",new JSONArray().put(new JSONObject().put("text",text))))).toString();
         }else{
-            String url=provider.equals("OpenRouter")?"https://openrouter.ai/api/v1/chat/completions":"https://api.openai.com/v1/chat/completions";
-            JSONObject body=new JSONObject().put("model",model).put("messages",new JSONArray().put(new JSONObject().put("role","user").put("content",text)));
-            Request.Builder b=new Request.Builder().url(url).post(RequestBody.create(body.toString(),MediaType.parse("application/json"))).addHeader("Authorization","Bearer "+key);
-            if(provider.equals("OpenRouter"))b.addHeader("HTTP-Referer","https://github.com/proamine12345-bot/morphe-ai99998887776665544455").addHeader("X-Title","APK AI Lab");
-            req=b.build();
+            url=provider.equals("OpenRouter")?"https://openrouter.ai/api/v1/chat/completions":"https://api.openai.com/v1/chat/completions";
+            body=new JSONObject().put("model",model).put("messages",new JSONArray().put(new JSONObject().put("role","user").put("content",text))).toString();
         }
-        try(Response res=http.newCall(req).execute()){
-            String raw=res.body()!=null?res.body().string():"";
-            if(!res.isSuccessful())throw new IOException("HTTP "+res.code()+": "+raw);
-            JSONObject j=new JSONObject(raw);
-            if(provider.equals("Gemini"))return j.getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts").getJSONObject(0).getString("text");
-            return j.getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content");
+        HttpURLConnection con=(HttpURLConnection)new URL(url).openConnection();
+        con.setRequestMethod("POST"); con.setConnectTimeout(30000); con.setReadTimeout(90000); con.setDoOutput(true);
+        con.setRequestProperty("Content-Type","application/json");
+        if(!provider.equals("Gemini")) con.setRequestProperty("Authorization","Bearer "+key);
+        if(provider.equals("OpenRouter")){
+            con.setRequestProperty("HTTP-Referer","https://github.com/proamine12345-bot/morphe-ai99998887776665544455");
+            con.setRequestProperty("X-Title","APK AI Lab");
+        }
+        try(OutputStream out=con.getOutputStream()){out.write(body.getBytes("UTF-8"));}
+        int code=con.getResponseCode();
+        InputStream stream=code>=400?con.getErrorStream():con.getInputStream();
+        String raw=readAll(stream);
+        if(code<200||code>=300) throw new IOException("HTTP "+code+": "+raw);
+        JSONObject j=new JSONObject(raw);
+        if(provider.equals("Gemini")) return j.getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts").getJSONObject(0).getString("text");
+        return j.getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content");
+    }
+
+    String readAll(InputStream in)throws Exception{
+        if(in==null)return "";
+        try(BufferedReader r=new BufferedReader(new InputStreamReader(in,"UTF-8"))){
+            StringBuilder s=new StringBuilder(); String line;
+            while((line=r.readLine())!=null)s.append(line);
+            return s.toString();
         }
     }
 
